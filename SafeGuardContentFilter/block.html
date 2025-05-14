@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Content Blocked - SafeGuard Filter</title>
+    <link rel="stylesheet" href="block.css">
+    <!-- Add Content Security Policy meta tag -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline';">
+</head>
+<body>
+    <div class="container">
+        <div class="block-message">
+            <div class="logo">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#1177ea" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-shield">
+                    <path d="M12 22s7-8 7-12a5 5 0 0 0-5-5 5 5 0 0 0-4 2 5 5 0 0 0-6-2 5 5 0 0 0-2 10c0 4.09 6 11 10 13z"></path>
+                </svg>
+            </div>
+            
+            <h1>Content Blocked</h1>
+            
+            <div class="warning-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#dc3545" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <line x1="12" y1="8" x2="12" y2="12"></line>
+                    <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                </svg>
+            </div>
+            
+            <p class="reason" id="block-reason">This content has been blocked by SafeGuard Content Filter.</p>
+            
+            <div class="details">
+                <div class="detail-item">
+                    <span class="detail-label">URL:</span>
+                    <span class="detail-value" id="blocked-url"></span>
+                </div>
+                <div class="detail-item">
+                    <span class="detail-label">Filter Category:</span>
+                    <span class="detail-value" id="filter-category">Content Policy Violation</span>
+                </div>
+                <div class="detail-item detected-keywords">
+                    <span class="detail-label">Detected Keywords:</span>
+                    <div class="keywords-container" id="detected-keywords"></div>
+                </div>
+            </div>
+            
+            <div class="actions">
+                <button id="back-button" class="button secondary">Go Back</button>
+                <button id="override-button" class="button primary">Admin Override</button>
+            </div>
+            
+            <div class="educational-note">
+                <p>Educational mode: If you believe this content was blocked in error or is being accessed for legitimate educational purposes, an administrator can use the override function.</p>
+            </div>
+        </div>
+        
+        <div class="password-modal hidden" id="password-modal">
+            <div class="modal-content">
+                <h2>Admin Authorization Required</h2>
+                <p>Enter your admin password to view this content:</p>
+                
+                <div class="form-group">
+                    <input type="password" id="admin-password" placeholder="Enter password">
+                </div>
+                
+                <div class="password-error hidden" id="auth-error">
+                    Incorrect password
+                </div>
+                
+                <div class="modal-actions">
+                    <button id="cancel-button" class="button secondary">Cancel</button>
+                    <button id="submit-button" class="button primary">Authorize</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="password.js"></script>
+    <!-- Move inline script to an external file -->
+    <script src="block-handler.js"></script>
+</body>
+</html>

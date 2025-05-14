@@ -1,0 +1,37 @@
+
+{
+  "manifest_version": 3,
+  "name": "SafeGuard Content Filter",
+  "version": "1.0.0",
+  "description": "AI-powered content filtering extension that blocks harmful web content",
+  "permissions": [
+    "storage",
+    "tabs",
+    "webNavigation",
+    "webRequest",
+    "scripting"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["utils.js", "content.js"],
+      "run_at": "document_start"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["block.html", "block.css", "block-handler.js", "password.js", "storage.js", "utils.js"],
+      "matches": ["<all_urls>"]
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html"
+  }
+}
