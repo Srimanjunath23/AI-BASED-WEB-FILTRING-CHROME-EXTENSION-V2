@@ -1,4 +1,7 @@
-
+"""
+SafeGuard Content Filter - Backend Server
+Handles AI-powered content analysis using BERT NLP and YOLO image detection
+"""
 
 import os
 import json
@@ -6,10 +9,6 @@ import logging
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import numpy as np
-from dotenv import load_dotenv
-
-
-load_dotenv()  
 
 # Import utilities for AI processing
 from nlp_processor import analyze_text_with_bert
@@ -54,7 +53,7 @@ educational_terms = [
     # Additional academic and research terms
     "effects", "impact", "paper", "case study", "studies", "statistics",
     "psychological", "analysis", "assessment", "correlation", "comparison",
-    "theory", "evidence", "data", "findings", "review", "journal", "bibliography"
+    "theory", "evidence", "data", "findings", "review", "journal", "bibliography",
     
     # Subject-specific educational terms
     "neurological", "psychology", "therapy", "counseling", "prevention", 
@@ -67,7 +66,7 @@ educational_terms = [
     
     # Paper and document types
     "literature", "publication", "dissertation", "thesis", "journal", 
-    "proceedings", "textbook", "encyclopedia", "bibliography", "citation","theory","theories"
+    "proceedings", "textbook", "encyclopedia", "bibliography", "citation"
 ]
 
 @app.route('/', methods=['GET'])
@@ -170,7 +169,10 @@ def index():
         It's not intended for direct browser access.</p>
         
         <p>For optimal performance, consider setting up API keys for external services:</p>
-      
+        <ul>
+            <li><code>HUGGINGFACE_API_KEY</code> - For enhanced text analysis</li>
+            <li><code>ROBOFLOW_API_KEY</code> - For improved image analysis</li>
+        </ul>
         
         <p>Refer to the <code>INSTRUCTIONS.md</code> file in the project repository for more detailed setup instructions.</p>
     </body>
@@ -433,7 +435,7 @@ def check_domain():
 
 @app.route('/analyze_image', methods=['POST'])
 def analyze_image():
-    """Analyze an image for NSFW/harmful content using YOLO"""
+    """Analyze an image for NSFW/harmful content using YOLO and additional heuristics"""
     # Check if request.json exists and has image_url
     if not request.json or 'image_url' not in request.json:
         return jsonify({"error": "No image URL provided"}), 400
@@ -441,18 +443,83 @@ def analyze_image():
     # Now safely access data from request.json
     image_url = request.json.get('image_url', '')
     sensitivity = request.json.get('sensitivity', 'medium')
+    surrounding_text = request.json.get('surrounding_text', '')
+    image_alt = request.json.get('image_alt', '')
     
     try:
         # Use YOLO to detect objects/content in the image
         result = analyze_image_with_yolo(image_url)
         
-        # Determine if image is harmful based on YOLO results
-        is_harmful = result['nsfw_probability'] > get_threshold_for_sensitivity(sensitivity)
+        # Start with YOLO detection probability
+        nsfw_probability = result['nsfw_probability']
+        category = "unknown"
+        detected_keywords = result.get('detected_objects', [])
         
+        # Additional analysis based on surrounding text and alt text
+        if surrounding_text or image_alt:
+            # Check text against harmful patterns
+            text_to_analyze = (surrounding_text + " " + image_alt).lower()
+            matched_keywords = []
+            
+            # Check against harmful content patterns
+            for cat, patterns in harmful_patterns.items():
+                for pattern in patterns:
+                    if pattern.lower() in text_to_analyze:
+                        matched_keywords.append(pattern)
+                        # Set category if we found a match and don't have one yet
+                        if not category or category == "unknown":
+                            category = cat
+            
+            # Increase probability based on matched keywords
+            if matched_keywords:
+                keyword_probability = min(0.8, len(matched_keywords) * 0.2)
+                nsfw_probability = max(nsfw_probability, keyword_probability)
+                detected_keywords.extend(matched_keywords)
+            
+            # Check if educational context (reduces probability)
+            edu_terms = ["research", "study", "paper", "academic", "education", 
+                         "prevention", "awareness", "effects", "impact", "scholarly"]
+            
+            edu_matches = [term for term in edu_terms if term in text_to_analyze]
+            if edu_matches and len(edu_matches) >= 2:
+                # Educational context reduces probability
+                nsfw_probability *= 0.5
+                logger.info(f"Educational context detected in image analysis, reducing probability")
+        
+        # Determine if image is harmful based on adjusted probability and sensitivity
+        threshold = get_threshold_for_sensitivity(sensitivity)
+        is_harmful = nsfw_probability > threshold
+        
+        # If it's a very high probability, also determine category
+        if nsfw_probability > 0.8:
+            # Look at the detected objects to determine category
+            nsfw_count = violence_count = suicide_count = 0
+            
+            for obj in detected_keywords:
+                obj_lower = obj.lower() if isinstance(obj, str) else str(obj).lower()
+                
+                if any(term in obj_lower for term in harmful_patterns["nsfw"]):
+                    nsfw_count += 1
+                elif any(term in obj_lower for term in harmful_patterns["violence"]):
+                    violence_count += 1
+                elif any(term in obj_lower for term in harmful_patterns["suicide"]):
+                    suicide_count += 1
+            
+            # Set category based on highest count
+            if nsfw_count >= violence_count and nsfw_count >= suicide_count:
+                category = "nsfw"
+            elif violence_count >= nsfw_count and violence_count >= suicide_count:
+                category = "violence"
+            elif suicide_count > 0:
+                category = "suicide"
+        
+        # Return detailed result
         return jsonify({
             "is_harmful": is_harmful,
-            "nsfw_probability": result['nsfw_probability'],
-            "detected_objects": result['detected_objects']
+            "nsfw_probability": nsfw_probability,
+            "detected_objects": list(set(detected_keywords)),
+            "category": category,
+            "threshold": threshold
         })
     except Exception as e:
         logger.error(f"Image analysis error: {str(e)}")
