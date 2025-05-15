@@ -140,34 +140,23 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       return true;
     
     case 'AUTHENTICATE':
-      // Verify password from content script for unblurring images
-      (async () => {
-        try {
-          // Get stored password
-          const settings = await chrome.storage.sync.get(['password']);
-          
-          // If no password is set or it's empty, authentication automatically succeeds
-          if (!settings.password) {
-            sessionAuthenticated = true;
-            sendResponse({ success: true });
-            return;
-          }
-          
-          // Verify provided password
-          const isValid = await verifyPassword(message.password);
-          
-          // If valid, set authenticated flag
-          if (isValid) {
-            sessionAuthenticated = true;
-          }
-          
-          sendResponse({ success: isValid });
-        } catch (error) {
-          console.error('Authentication error:', error);
-          sendResponse({ success: false, error: error.message });
-        }
-      })();
-      return true; // Keep connection open for async response
+    verifyPassword(message.password)
+        .then(result => {
+            if (result) {
+                console.log('Password verified successfully');
+                isAuthenticated = true;
+                authExpirationTime = Date.now() + AUTH_TIMEOUT;
+                sendResponse({ success: true });
+            } else {
+                console.log('Password verification failed');
+                sendResponse({ success: false, error: 'Invalid password' });
+            }
+        })
+        .catch(error => {
+            console.error('Error during password verification:', error);
+            sendResponse({ success: false, error: 'Error during authentication' });
+        });
+    return true;
       
     case 'CHECK_AUTH':
       // Check if user is already authenticated for this session (for image unblurring)

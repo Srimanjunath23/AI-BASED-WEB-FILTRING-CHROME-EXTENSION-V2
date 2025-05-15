@@ -6,13 +6,13 @@ Handles AI-powered content analysis using BERT NLP and YOLO image detection
 import os
 import json
 import logging
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify,render_template
 from flask_cors import CORS
 import numpy as np
 
 # Import utilities for AI processing
 from nlp_processor import analyze_text_with_bert
-from vision_processor import analyze_image_with_yolo
+from vision_processor import ViolenceDetector
 
 # Set up logging
 logging.basicConfig(
@@ -30,18 +30,37 @@ API_KEY = os.getenv("HUGGINGFACE_API_KEY", "")
 
 # Load harmful content patterns
 harmful_patterns = {
-    "nsfw": [
-        "porn", "xxx", "nudity", "naked", "sex video", "adult content",
-        "pornography", "erotic", "nsfw", "explicit", "onlyfans"
-    ],
-    "violence": [
-        "violence", "gore", "blood", "kill", "murder", "dead body",
-        "graphic violence", "brutal", "fight video", "torture", "death"
-    ],
-    "suicide": [
-        "suicide", "kill myself", "self-harm", "how to die", "end my life",
-        "suicide methods", "hanging myself", "painless suicide"
-    ]
+   "nsfw": [
+  "porn", "porno", "pornographic", "pornography", "xxx", "xxx video", "xxx movies",
+  "nudity", "naked", "nude", "boobs", "breasts", "sex", "sex video", "having sex", 
+  "hot sex", "adult content", "adult video", "explicit", "erotic", "sexual", "masturbate",
+  "masturbation", "hentai", "fetish", "onlyfans", "only fans", "camgirl", "cam girl",
+  "live sex", "strip", "stripper", "orgy", "blowjob", "bj", "69", "nude pic", "fuck",
+  "fucking", "fucked", "fucker", "fucking hot", "fucking sexy", "sexy", "sexy"
+  "nude photo", "leaked nudes", "xhamster", "xmasti", "xmaza", "xvideos", "xnxx",
+  "redtube", "brazzers", "bangbros", "playboy", "sensual", "softcore", "hardcore"
+]
+,
+   "violence": [
+  "violence", "violent", "gore", "gory", "blood", "bloody", "kill", "killed", "killing",
+  "murder", "murdered", "murdering", "stab", "stabbing", "beating", "brutal", "brutality",
+  "fight", "fighting", "fight video", "dead body", "corpses", "death", "dead", "torture",
+  "graphic violence", "executed", "execution", "massacre", "slaughter", "chopped",
+  "decapitate", "decapitated", "shoot", "shooting", "gunshot", "gunfire", "bloodshed",
+  "assault", "physical abuse", "knife attack", "clubbed", "bashed", "burnt alive"
+]
+,"suicide": [
+  "suicide", "kill myself", "killing myself", "how to die", "want to die", 
+  "i want to die", "self-harm", "self harm", "cutting myself", "cut myself", 
+  "painless suicide", "end my life", "ending my life", "commit suicide", 
+  "committing suicide", "overdose", "hang myself", "hanging myself", 
+  "drown myself", "jump off building", "suicidal", "depressed", 
+  "i want to disappear", "i can't live", "worthless", "hopeless", 
+  "how to hang myself", "how to kill myself", "die by suicide", 
+  "ways to die", "methods of suicide", "leave this world", 
+  "exit life", "ending it all"
+]
+
 }
 
 # Educational context indicators
@@ -62,166 +81,18 @@ educational_terms = [
     
     # Educational roles and institutions
     "school", "university", "college", "classroom", "teacher", "student", 
-    "professor", "counselor", "program", "curriculum", "dissertation", "thesis",
+    "professor", "counselor", "program", "curriculum", "dissertation", "thesis","theory","theories"
     
     # Paper and document types
     "literature", "publication", "dissertation", "thesis", "journal", 
     "proceedings", "textbook", "encyclopedia", "bibliography", "citation"
 ]
 
+
 @app.route('/', methods=['GET'])
 def index():
-    """Index page with project information"""
-    from flask import Response
-    html_content = """
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>SafeGuard Content Filter - Server</title>
-        <style>
-            body {
-                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-                line-height: 1.6;
-                color: #333;
-                max-width: 800px;
-                margin: 0 auto;
-                padding: 20px;
-            }
-            h1 {
-                color: #1177ea;
-                border-bottom: 2px solid #e6f2ff;
-                padding-bottom: 10px;
-            }
-            h2 {
-                color: #343a40;
-                margin-top: 30px;
-            }
-            .endpoint {
-                background-color: #f8f9fa;
-                border-left: 4px solid #1177ea;
-                padding: 15px;
-                margin-bottom: 15px;
-                border-radius: 0 4px 4px 0;
-            }
-            .endpoint h3 {
-                margin-top: 0;
-                color: #1177ea;
-            }
-            code {
-                background-color: #f1f3f5;
-                padding: 2px 5px;
-                border-radius: 3px;
-                font-family: monospace;
-            }
-            .status {
-                display: inline-block;
-                padding: 5px 10px;
-                border-radius: 4px;
-                font-weight: bold;
-                background-color: #28a745;
-                color: white;
-            }
-        </style>
-    </head>
-    <body>
-        <h1>SafeGuard Content Filter - Backend Server</h1>
-        <p class="status">Server Running</p>
-        
-        <p>This is the backend server for the SafeGuard Content Filter browser extension. 
-        It provides AI-powered content analysis using BERT for text analysis and YOLO for image detection.</p>
-        
-        <h2>Available API Endpoints</h2>
-        
-        <div class="endpoint">
-            <h3>Health Check</h3>
-            <p><code>GET /health</code></p>
-            <p>Check if the server is running.</p>
-        </div>
-        
-        <div class="endpoint">
-            <h3>Analyze Search Query</h3>
-            <p><code>POST /analyze_query</code></p>
-            <p>Analyze a search query for harmful intent.</p>
-        </div>
-        
-        <div class="endpoint">
-            <h3>Analyze Page Content</h3>
-            <p><code>POST /analyze_content</code></p>
-            <p>Analyze web page content for harmful material.</p>
-        </div>
-        
-        <div class="endpoint">
-            <h3>Check Domain</h3>
-            <p><code>POST /check_domain</code></p>
-            <p>Check if a domain is known to host harmful content.</p>
-        </div>
-        
-        <div class="endpoint">
-            <h3>Analyze Image</h3>
-            <p><code>POST /analyze_image</code></p>
-            <p>Analyze an image for NSFW/harmful content using YOLO.</p>
-        </div>
-        
-        <h2>How to Use</h2>
-        <p>This server is designed to be used with the SafeGuard Content Filter browser extension. 
-        It's not intended for direct browser access.</p>
-        
-        <p>For optimal performance, consider setting up API keys for external services:</p>
-        <ul>
-            <li><code>HUGGINGFACE_API_KEY</code> - For enhanced text analysis</li>
-            <li><code>ROBOFLOW_API_KEY</code> - For improved image analysis</li>
-        </ul>
-        
-        <p>Refer to the <code>INSTRUCTIONS.md</code> file in the project repository for more detailed setup instructions.</p>
-    </body>
-    </html>
-    """
-    # Set headers to allow inline scripts and styles
-    response = Response(html_content)
-    response.headers['Content-Security-Policy'] = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'"
-    return response
+    return render_template('index.html')
 
-@app.route('/health', methods=['GET'])
-def health_check():
-    """Health check endpoint"""
-    return jsonify({"status": "ok"})
-
-@app.route('/test-all-filters', methods=['GET'])
-def test_all_filters():
-    """Test endpoint to check all filter categories"""
-    all_categories = {}
-    
-    # Test NSFW filter
-    nsfw_result = {
-        "is_harmful": True,
-        "harmful_keywords": ["porn", "nude", "explicit"],
-        "category": "nsfw"
-    }
-    all_categories["nsfw"] = nsfw_result
-    
-    # Test Violence filter
-    violence_result = {
-        "is_harmful": True,
-        "harmful_keywords": ["violence", "gore", "murder"],
-        "category": "violence"
-    }
-    all_categories["violence"] = violence_result
-    
-    # Test Suicide filter
-    suicide_result = {
-        "is_harmful": True,
-        "harmful_keywords": ["suicide", "kill myself"],
-        "category": "suicide"
-    }
-    all_categories["suicide"] = suicide_result
-    
-    return jsonify({
-        "status": "ok",
-        "filter_categories": all_categories,
-        "message": "All filter categories are available and functioning"
-    })
 
 @app.route('/analyze_query', methods=['POST'])
 def analyze_search_query():
@@ -294,8 +165,9 @@ def analyze_search_query():
         "category": determine_category(matched_keywords)
     })
 
-@app.route('/analyze_content', methods=['POST'])
-def analyze_page_content():
+
+# @app.route('/analyze_content', methods=['POST'])
+# def analyze_page_content():
     """Analyze web page content for harmful material"""
     # Check if request contains JSON data
     if not request.is_json:
@@ -411,9 +283,15 @@ def check_domain():
     
     # Known harmful domains list - these would be blocked regardless of sensitivity
     known_harmful_domains = [
-        "pornhub.com", "xvideos.com", "xnxx.com",
-        "bestgore.com", "liveleak.com", 
-        "suicidemethod.com", "howtokillmyself.com"
+        "exampleporn.com", "adultsite.xyz", "nsfwvideos.io", "xxxhub.org",
+    "pornhub.com", "xvideos.com", "xhamster.com", "redtube.com",
+    "xnxx.com", "youjizz.com", "spankbang.com", "youporn.com",
+    "brazzers.com", "bangbros.com", "team-skeet.com", "hclips.com",
+    "tnaflix.com", "fapello.com", "rule34.xxx", "porn.com",
+    "onlyfans.com", "manyvids.com", "nudogram.com", "motherless.com",
+    "erome.com", "camwhores.tv", "cam4.com", "livejasmin.com",
+    "chaturbate.com", "stripchat.com", "mydirtyhobby.com",
+    "metart.com", "hqporner.com", "porndig.com", "tubegalore.com","webxseries","xmaza"
     ]
     
     for known_domain in known_harmful_domains:
@@ -433,98 +311,123 @@ def check_domain():
         "category": determine_category(matched_patterns)
     })
 
+@app.route('/analyze_content', methods=['POST'])
+def analyze_page_content():
+    if not request.is_json:
+        return jsonify({"error": "Request must be JSON"}), 400
+
+    data = request.json or {}
+    content = data.get('content', '')
+    url = data.get('url', '')
+    title = data.get('title', '')
+    sensitivity = data.get('sensitivity', 'medium')
+    educational_mode = data.get('educational_mode', True)
+    filters = data.get('filters', ['nsfw', 'violence', 'suicide'])
+
+    logger.info(f"Analyzing content from URL: {url}")
+
+    # Blocklist Domain Check
+    # if is_domain_blocked(url):
+    #     logger.warning(f"Blocked domain detected: {url}")
+    #     return jsonify({
+    #         "is_harmful": True,
+    #         "reason": "Blocked domain",
+    #         "harmful_keywords": ["blocked_domain"],
+    #         "category": "blocked"
+    #     })
+
+    # Keyword Detection
+    is_harmful = False
+    matched_keywords = []
+    text_to_check = f"{title} {content}".lower()
+
+    for filter_type in filters:
+        patterns = harmful_patterns.get(filter_type, [])
+        for pattern in patterns:
+            if pattern in text_to_check:
+                is_harmful = True
+                matched_keywords.append(pattern)
+
+    # Educational Context
+    if is_harmful and educational_mode:
+        educational_score = 0
+        for term in educational_terms:
+            if term in text_to_check:
+                educational_score += 2 if term in [
+                    "research", "study", "paper", "academic",
+                    "psychology", "education", "prevention",
+                    "awareness", "effects", "impact"
+                ] else 1
+
+        if educational_score >= 1:
+            is_harmful = False
+            logger.info(f"Educational context detected, allowing content")
+
+    # Sensitivity Threshold
+    threshold = 2
+    if sensitivity == 'low':
+        threshold = 3
+    elif sensitivity == 'high':
+        threshold = 1
+
+    if sensitivity != 'high' and len(matched_keywords) < threshold:
+        is_harmful = False
+
+    # Fallback BERT for high sensitivity
+    if sensitivity == 'high' and not is_harmful:
+        try:
+            sample = (title + " " + content[:1000])
+            bert_result = analyze_text_with_bert(sample)
+            if bert_result.get('harmful_probability', 0) > 0.5:
+                is_harmful = True
+                matched_keywords.extend(bert_result.get('detected_keywords', []))
+        except Exception as e:
+            logger.error(f"BERT analysis error: {str(e)}")
+
+    return jsonify({
+        "is_harmful": is_harmful,
+        "reason": "Harmful content detected" if is_harmful else "Content allowed",
+        "harmful_keywords": list(set(matched_keywords)),
+        "category": determine_category(matched_keywords)
+    })
+
 @app.route('/analyze_image', methods=['POST'])
 def analyze_image():
-    """Analyze an image for NSFW/harmful content using YOLO and additional heuristics"""
-    # Check if request.json exists and has image_url
-    if not request.json or 'image_url' not in request.json:
-        return jsonify({"error": "No image URL provided"}), 400
-    
-    # Now safely access data from request.json
-    image_url = request.json.get('image_url', '')
-    sensitivity = request.json.get('sensitivity', 'medium')
-    surrounding_text = request.json.get('surrounding_text', '')
-    image_alt = request.json.get('image_alt', '')
-    
     try:
-        # Use YOLO to detect objects/content in the image
-        result = analyze_image_with_yolo(image_url)
-        
-        # Start with YOLO detection probability
-        nsfw_probability = result['nsfw_probability']
-        category = "unknown"
-        detected_keywords = result.get('detected_objects', [])
-        
-        # Additional analysis based on surrounding text and alt text
-        if surrounding_text or image_alt:
-            # Check text against harmful patterns
-            text_to_analyze = (surrounding_text + " " + image_alt).lower()
-            matched_keywords = []
-            
-            # Check against harmful content patterns
-            for cat, patterns in harmful_patterns.items():
-                for pattern in patterns:
-                    if pattern.lower() in text_to_analyze:
-                        matched_keywords.append(pattern)
-                        # Set category if we found a match and don't have one yet
-                        if not category or category == "unknown":
-                            category = cat
-            
-            # Increase probability based on matched keywords
-            if matched_keywords:
-                keyword_probability = min(0.8, len(matched_keywords) * 0.2)
-                nsfw_probability = max(nsfw_probability, keyword_probability)
-                detected_keywords.extend(matched_keywords)
-            
-            # Check if educational context (reduces probability)
-            edu_terms = ["research", "study", "paper", "academic", "education", 
-                         "prevention", "awareness", "effects", "impact", "scholarly"]
-            
-            edu_matches = [term for term in edu_terms if term in text_to_analyze]
-            if edu_matches and len(edu_matches) >= 2:
-                # Educational context reduces probability
-                nsfw_probability *= 0.5
-                logger.info(f"Educational context detected in image analysis, reducing probability")
-        
-        # Determine if image is harmful based on adjusted probability and sensitivity
-        threshold = get_threshold_for_sensitivity(sensitivity)
-        is_harmful = nsfw_probability > threshold
-        
-        # If it's a very high probability, also determine category
-        if nsfw_probability > 0.8:
-            # Look at the detected objects to determine category
-            nsfw_count = violence_count = suicide_count = 0
-            
-            for obj in detected_keywords:
-                obj_lower = obj.lower() if isinstance(obj, str) else str(obj).lower()
-                
-                if any(term in obj_lower for term in harmful_patterns["nsfw"]):
-                    nsfw_count += 1
-                elif any(term in obj_lower for term in harmful_patterns["violence"]):
-                    violence_count += 1
-                elif any(term in obj_lower for term in harmful_patterns["suicide"]):
-                    suicide_count += 1
-            
-            # Set category based on highest count
-            if nsfw_count >= violence_count and nsfw_count >= suicide_count:
-                category = "nsfw"
-            elif violence_count >= nsfw_count and violence_count >= suicide_count:
-                category = "violence"
-            elif suicide_count > 0:
-                category = "suicide"
-        
-        # Return detailed result
+        data = request.get_json()
+        image_url = data.get("image_url")
+        image_alt = data.get("image_alt", "").lower()
+        surrounding_text = data.get("surrounding_text", "").lower()
+        sensitivity = data.get("sensitivity", "medium")
+
+        temp_path = "temp_image.jpg"
+        response = requests.get(image_url, timeout=10)
+        img = Image.open(BytesIO(response.content))
+        img.save(temp_path)
+
+        # AI detection
+        score, tags = detector.analyze_image(temp_path)
+        os.remove(temp_path)
+
+        # Keyword-based fallback
+        all_text = image_alt + " " + surrounding_text
+        keyword_matches = [k for k in detector.violence_categories if k in all_text]
+
+        # Sensitivity threshold
+        thresholds = {'low': 0.85, 'medium': 0.75, 'high': 0.60}
+        threshold = thresholds.get(sensitivity, 0.75)
+
+        is_harmful = score >= threshold or len(keyword_matches) > 0
+
         return jsonify({
             "is_harmful": is_harmful,
-            "nsfw_probability": nsfw_probability,
-            "detected_objects": list(set(detected_keywords)),
-            "category": category,
-            "threshold": threshold
+            "score": score,
+            "tags": tags,
+            "keywords": keyword_matches
         })
-    except Exception as e:
-        logger.error(f"Image analysis error: {str(e)}")
-        return jsonify({"error": str(e)}), 500
 
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 def determine_category(keywords):
     """Determine the primary category of harmful content"""
     if not keywords:

@@ -45,69 +45,291 @@ async function initialize() {
     console.error("Failed to initialize content script:", error);
   }
 }
+const blockedDomains = [
+  "pornhub.com", "xvideos.com", "xhamster.com", "redtube.com", "xnxx.com", "youjizz.com",
+  "spankbang.com", "youporn.com", "brazzers.com", "bangbros.com", "hclips.com", "fapello.com",
+  "rule34.xxx", "tnaflix.com", "onlyfans.com", "manyvids.com", "nudogram.com", "motherless.com",
+  "erome.com", "camwhores.tv", "livejasmin.com", "chaturbate.com", "stripchat.com", "hqporner.com",
+  "cam4.com", "tubegalore.com", "mydirtyhobby.com", "metart.com", "porndig.com"
+];
 
-// Analyze the current page content
-async function analyzePageOnLoad() {
-  try {
-    // Extract text content from the page
-    const pageContent = extractPageContent();
-
-    // Send content to background script for analysis
-    const analysisResult = await chrome.runtime.sendMessage({
-      type: 'ANALYZE_PAGE_CONTENT',
-      content: pageContent
+async function getExtensionSettings() {
+  return new Promise((resolve) => {
+    chrome.runtime.sendMessage({ type: 'GET_SETTINGS' }, (response) => {
+      resolve(response?.settings || {
+        enabled: true,
+        nsfwFilter: true,
+        violenceFilter: true,
+        suicideFilter: true,
+        educationalMode: true,
+        sensitivity: 'medium'
+      });
     });
+  });
+}
 
-    // Handle the result
-    if (analysisResult.isHarmful) {
-      // Check if we're in incognito mode and handle content differently
-      try {
-        // In incognito mode, we need to directly modify the DOM instead of redirecting
-        const isIncognito = chrome.extension?.inIncognitoContext;
-        if (isIncognito) {
-          handleHarmfulContentInIncognito(analysisResult);
-          return;
-        }
-      } catch (e) {
-        console.error('Error checking incognito context:', e);
-      }
+function domainInList(url) {
+  const currentHost = new URL(url).hostname.replace(/^www\./, '');
+  return blockedDomains.some(domain => currentHost.includes(domain));
+}
 
-      // Handle harmful content - block page
-      handleHarmfulContent(analysisResult);
-    } else {
-      // Still scan for images to blur
-      const pageKeywords = extractKeywordsFromPage();
-      await blurImages(pageKeywords);
-    }
-  } catch (error) {
-    console.error("Failed to analyze page:", error);
+function performContentAnalysis() {
+  const pageContent = document.body ? document.body.innerText.toLowerCase() : '';
+  const url = window.location.href;
+  const pageTitle = document.title ? document.title.toLowerCase() : '';
+
+  const educationalWords = ['research', 'study', 'academic', 'education', 'scientific', 'analysis', 'university', 'paper', 'sex education'];
+  const educationalPhrases = ['research on', 'study on', 'analysis of', 'effects of', 'impact of', 'prevention of'];
+
+  let reason = '';
+  let isEducational = false;
+
+  const contentToCheck = pageContent + ' ' + pageTitle;
+
+  if (extensionSettings.educationalMode) {
+    const educationalWordCount = educationalWords.filter(word => contentToCheck.includes(word)).length;
+    const hasSensitivePhrases = educationalPhrases.some(phrase =>
+      pageContent.includes(phrase + ' violence') || pageContent.includes(phrase + ' suicide')
+    );
+    isEducational = (educationalWordCount >= 3) || hasSensitivePhrases;
+    console.log('Educational content detected:', isEducational);
+  }
+
+  const nsfwWords = ['xxx', 'porn', 'adult content', 'nsfw', 'nude', 'sex', 'hardcore', 'erotic', 'hentai','xhamster','xmasti','xmaza'];
+  const violenceWords = ['kill', 'murder', 'fight', 'blood', 'assault', 'beating'];
+  const suicideWords = ['suicide', 'self-harm', 'kill myself', 'end my life'];
+
+  if (domainInList(url)) {
+    reason = 'NSFW (domain)';
+  } else if (suicideWords.some(word => pageContent.includes(word))) {
+    reason = 'suicide';
+  } else if (nsfwWords.some(word => contentToCheck.includes(word)) && !isEducational) {
+    reason = 'NSFW';
+  } else if (violenceWords.some(word => pageContent.includes(word))) {
+    reason = 'violence';
+  }
+
+  if (reason && isEducational && extensionSettings.educationalMode) {
+    console.log('Educational content detected, allowing access');
+    blurImages();
+  } else if (reason) {
+    blockPage(reason);
+  } else {
+    blurImages();
   }
 }
 
-// Extract content from the page
-function extractPageContent() {
-  // Get text content from the document
-  return {
-    url: window.location.href,
-    title: document.title,
-    text: document.body.innerText
-  };
+function analyzePageContent() {
+  if (isPageBlocked) return;
+  performContentAnalysis();
 }
 
-// Handle harmful content by redirecting to the block page
-function handleHarmfulContent(analysisResult) {
-  // URL to the extension's block page
-  const blockUrl = chrome.runtime.getURL('block.html');
+//   const pageContent = document.body ? document.body.innerText.toLowerCase() : '';
+//   const url = window.location.href;
+//   const pageTitle = document.title ? document.title.toLowerCase() : '';
 
-  // Add query parameters with information about the block
-  const url = new URL(blockUrl);
-  url.searchParams.set('url', window.location.href);
-  url.searchParams.set('reason', analysisResult.reason || 'Harmful content detected');
-  url.searchParams.set('category', analysisResult.category || 'unknown');
+//   const educationalWords = ['research', 'study', 'academic', 'education', 'scientific', 'analysis', 'university', 'paper', 'sex education'];
+//   const educationalPhrases = ['research on', 'study on', 'analysis of', 'effects of', 'impact of', 'prevention of'];
 
-  // Redirect to the block page
-  window.location.href = url.toString();
-}
+//   let reason = '';
+//   let isEducational = false;
+
+//   if (extensionSettings.educationalMode) {
+//     const contentToCheck = pageContent + ' ' + pageTitle;
+//     const educationalWordCount = educationalWords.filter(word => contentToCheck.includes(word)).length;
+//     const hasSensitivePhrases = educationalPhrases.some(phrase => {
+//       return (
+//         pageContent.includes(phrase + ' violence') ||
+//         pageContent.includes(phrase + ' suicide')
+//       );
+//     });
+//     isEducational = (educationalWordCount >= 3) || hasSensitivePhrases;
+//     console.log('Educational content detected:', isEducational);
+//   }
+
+//   const nsfwWords = ['xxx', 'porn', 'adult content', 'nsfw'];;
+//   const suicideWords = ['suicide', 'self-harm'];
+
+//   if (suicideWords.some(word => pageContent.includes(word))) {
+//     reason = 'suicide';
+//   } else if (nsfwWords.some(word => pageContent.includes(word)) && !isEducational) {
+//     reason = 'NSFW';
+//   } else if (violenceWords.some(word => pageContent.includes(word))) {
+//     reason = 'violence';
+//   }
+
+//   if (reason && isEducational && extensionSettings.educationalMode) {
+//     console.log('Educational content detected, allowing access');
+//     blurImages();
+//   } else if (reason) {
+//     blockPage(reason);
+//   } else {
+//     blurImages();
+//   }
+// }
+
+
+
+// function analyzePageContent() {
+//   if (isPageBlocked) return;
+//   performContentAnalysis();
+// }
+// Analyze the current page content
+// async function analyzePageOnLoad() {
+//   try {
+//     // Extract text content from the page
+//     const pageContent = extractPageContent();
+
+//     // Send content to background script for analysis
+//     const analysisResult = await chrome.runtime.sendMessage({
+//       type: 'ANALYZE_PAGE_CONTENT',
+//       content: pageContent
+//     });
+
+//     // Handle the result
+//     if (analysisResult.isHarmful) {
+//       // Check if we're in incognito mode and handle content differently
+//       try {
+//         // In incognito mode, we need to directly modify the DOM instead of redirecting
+//         const isIncognito = chrome.extension?.inIncognitoContext;
+//         if (isIncognito) {
+//           handleHarmfulContentInIncognito(analysisResult);
+//           return;
+//         }
+//       } catch (e) {
+//         console.error('Error checking incognito context:', e);
+//       }
+
+//       // Handle harmful content - block page
+//       handleHarmfulContent(analysisResult);
+//     } else {
+//       // Still scan for images to blur
+//       const pageKeywords = extractKeywordsFromPage();
+//       await blurImages(pageKeywords);
+//     }
+//   } catch (error) {
+//     console.error("Failed to analyze page:", error);
+//   }
+// }
+
+// // Extract content from the page
+// function extractPageContent() {
+//   // Get text content from the document
+//   return {
+//     url: window.location.href,
+//     title: document.title,
+//     text: document.body.innerText
+//   };
+// }
+
+// // Handle harmful content by redirecting to the block page
+// function handleHarmfulContent(analysisResult) {
+//   // URL to the extension's block page
+//   const blockUrl = chrome.runtime.getURL('block.html');
+
+//   // Add query parameters with information about the block
+//   const url = new URL(blockUrl);
+//   url.searchParams.set('url', window.location.href);
+//   url.searchParams.set('reason', analysisResult.reason || 'Harmful content detected');
+//   url.searchParams.set('category', analysisResult.category || 'unknown');
+
+//   // Redirect to the block page
+//   window.location.href = url.toString();
+// }
+// async function performContentAnalysis() {
+//   const pageContent = document.body ? document.body.innerText.toLowerCase() : '';
+//   const url = window.location.href;
+//   const pageTitle = document.title ? document.title.toLowerCase() : '';
+
+//   const contentToCheck = pageContent + ' ' + pageTitle;
+
+//   const educationalWords = ['research', 'study', 'academic', 'education', 'scientific', 'analysis', 'university', 'paper', 'sex education'];
+//   const educationalPhrases = ['research on', 'study on', 'analysis of', 'effects of', 'impact of', 'prevention of'];
+
+//   let reason = '';
+//   let isEducational = false;
+
+//   try {
+//     if (extensionSettings.educationalMode) {
+//       const educationalWordCount = educationalWords.filter(word => contentToCheck.includes(word)).length;
+//       const hasSensitivePhrases = educationalPhrases.some(phrase =>
+//         pageContent.includes(phrase + ' violence') || pageContent.includes(phrase + ' suicide')
+//       );
+
+//       isEducational = (educationalWordCount >= 3) || hasSensitivePhrases;
+//       console.log('Educational content detected:', isEducational);
+//     }
+
+//     const nsfwWords = ['xxx', 'porn', 'adult content', 'nsfw'];
+//     const violenceWords = ['kill', 'fight'];
+//     const suicideWords = ['suicide', 'self-harm'];
+
+//     if (suicideWords.some(word => pageContent.includes(word))) {
+//       reason = 'suicide';
+//     } else if (nsfwWords.some(word => pageContent.includes(word)) && !isEducational) {
+//       reason = 'NSFW';
+//     } else if (violenceWords.some(word => pageContent.includes(word))) {
+//       reason = 'violence';
+//     }
+
+//     if (reason && isEducational && extensionSettings.educationalMode) {
+//       console.log('Educational but sensitive content detected, allowing with blur');
+//       blurImages();
+//     } else if (reason) {
+//       const isIncognito = chrome.extension?.inIncognitoContext;
+//       if (isIncognito) {
+//         handleHarmfulContentInIncognito({ reason, category: reason, isHarmful: true });
+//       } else {
+//         blockPage(reason);
+//       }
+//     } else {
+//       blurImages();
+//     }
+
+//   } catch (error) {
+//     console.error("Error during content analysis:", error);
+//     blurImages(); // fallback
+//   }
+// }
+
+// function analyzePageContent() {
+//   if (isPageBlocked) return;
+//   performContentAnalysis();
+// }
+// async function performContentAnalysis(textContent) {
+//   return new Promise((resolve, reject) => {
+//     chrome.runtime.sendMessage(
+//       {
+//         type: "analyze_content",
+//         payload: textContent,
+//       },
+//       (response) => {
+//         if (chrome.runtime.lastError) {
+//           return reject(chrome.runtime.lastError.message);
+//         }
+//         if (response?.error) {
+//           return reject(response.error);
+//         }
+//         resolve(response);
+//       }
+//     );
+//   });
+// }
+
+// /**
+//  * Analyze the text content of the page using OpenAI and block if needed.
+//  */
+// async function analyzePageContent() {
+//   const pageText = document.body.innerText;
+//   try {
+//     const result = await performContentAnalysis(pageText);
+//     if (result.block) {
+//       blockPage("Blocked based on AI content analysis.");
+//     }
+//   } catch (error) {
+//     console.error("AI content analysis failed:", error);
+//   }
+// }
 
 // Handle harmful content in incognito mode with inline content replacement
 function handleHarmfulContentInIncognito(analysisResult) {
@@ -310,89 +532,59 @@ function extractKeywordsFromPage() {
 // Function to blur unsafe images based on alt/src and keywords
 async function blurImages() {
   const images = document.querySelectorAll('img');
-  const unsafeKeywords = ['xxx', 'porn', 'violence', 'suicide', 'self-harm', 'attack'];
-
   const settings = await getExtensionSettings();
+  const sensitivity = settings.sensitivity || 'medium';
 
-  const sensitivityThresholds = {
-    low: 0.85,
-    medium: 0.75,
-    high: 0.60
-  };
-
-  const threshold = sensitivityThresholds[settings.sensitivity || 'medium'];
+  // Fallback keywords if AI fails
+  const fallbackKeywords = [
+    'xxx', 'porn', 'nudity', 'nsfw', 'sex', 'violence', 'gore',
+    'blood', 'murder', 'kill', 'dead', 'knife', 'gun', 'injury', 'suicide'
+  ];
 
   for (const img of images) {
-    const imgAlt = img.alt?.toLowerCase() || '';
-    const imgSrc = img.src?.toLowerCase() || '';
+    if (!img.src || img.dataset.safeguardProcessed === 'true') continue;
+    img.dataset.safeguardProcessed = 'true';
 
-    // Skip base64/blob images
-    if (img.src.startsWith('data:') || img.src.startsWith('blob:')) continue;
+    if (img.width < 50 || img.height < 50 || img.src.startsWith('data:') || img.src.startsWith('blob:')) continue;
 
-    let shouldBlur = unsafeKeywords.some(keyword =>
-      imgAlt.includes(keyword) || imgSrc.includes(keyword)
-    );
+    const alt = img.alt?.toLowerCase() || '';
+    const src = img.src.toLowerCase();
+    const pageText = document.body.innerText.toLowerCase();
 
-    if (shouldBlur) {
-      // Set the image to block to avoid layout issues
-      img.style.display = 'block';
+    let isHarmful = false;
+     isHarmful = fallbackKeywords.some(keyword =>
+        alt.includes(keyword) || src.includes(keyword)
+      );
+      if (isHarmful) {
+      blurImageWithOverlay(img);
+    }
 
-      // Get the image dimensions
-      const width = img.offsetWidth + 'px';
-      const height = img.offsetHeight + 'px';
-
-      // Wrap image in a container to preserve layout
-      const wrapper = document.createElement('div');
-      wrapper.style.position = 'relative';
-      wrapper.style.display = 'inline-block';
-      wrapper.style.width = width;
-      wrapper.style.height = height;
-      wrapper.style.overflow = 'hidden';
-
-      // Insert wrapper before image and append image into it
-      const parent = img.parentNode;
-      parent.insertBefore(wrapper, img);
-      wrapper.appendChild(img);
-
-      // Blur the image
-      img.style.filter = 'blur(10px)';
-      img.style.transition = 'filter 0.3s ease';
-
-      // Create unlock button
-      const button = document.createElement('button');
-      button.innerText = 'Show Image';
-      Object.assign(button.style, {
-        position: 'absolute',
-        top: '50%',
-        left: '50%',
-        transform: 'translate(-50%, -50%)',
-        zIndex: '9999',
-        backgroundColor: '#000',
-        color: '#fff',
-        padding: '6px 10px',
-        borderRadius: '5px',
-        border: 'none',
-        cursor: 'pointer',
-        opacity: '0.85'
+    try {
+        
+      const res = await fetch('http://localhost:8000/analyze_image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          image_url: img.src,
+          image_alt: alt,
+          surrounding_text: pageText,
+          sensitivity: sensitivity
+        })
       });
 
-      wrapper.appendChild(button);
+      const result = await res.json();
+      isHarmful = result.is_harmful;
+    } catch (err) {
+      console.warn('AI analysis failed. Falling back to keyword check.', err);
 
-      // Unlock logic
-      button.addEventListener('click', async () => {
-        const enteredPassword = prompt('Enter extension password to view this image:');
-        const latestSettings = await getExtensionSettings();
+      // Fallback keyword check
+      isHarmful = fallbackKeywords.some(keyword =>
+        alt.includes(keyword) || src.includes(keyword)
+      );
+    }
 
-        const hashedInput = simpleHash(enteredPassword);
-        const correctHash = latestSettings.password;
-
-        if (!latestSettings.isPasswordProtected || !correctHash || hashedInput === correctHash) {
-          img.style.filter = 'none'; // remove blur
-          button.remove(); // remove button
-        } else {
-          alert('Incorrect password.');
-        }
-      });
+    if (isHarmful) {
+      blurImageWithOverlay(img);
     }
   }
 }
@@ -410,6 +602,68 @@ async function getExtensionSettings() {
   });
 }
 
+function blurImageWithOverlay(img) {
+  // Set image to block to avoid layout issues
+  img.style.display = 'block';
+
+  // Get the image dimensions
+  const width = img.offsetWidth + 'px';
+  const height = img.offsetHeight + 'px';
+
+  // Wrap image in a container to preserve layout
+  const wrapper = document.createElement('div');
+  wrapper.style.position = 'relative';
+  wrapper.style.display = 'inline-block';
+  wrapper.style.width = width;
+  wrapper.style.height = height;
+  wrapper.style.overflow = 'hidden';
+
+  // Insert wrapper before image and append image into it
+  const parent = img.parentNode;
+  parent.insertBefore(wrapper, img);
+  wrapper.appendChild(img);
+
+  // Blur the image
+  img.style.filter = 'blur(10px)';
+  img.style.transition = 'filter 0.3s ease';
+
+  // Create unlock button
+  const button = document.createElement('button');
+  button.innerText = 'Show Image';
+  Object.assign(button.style, {
+    position: 'absolute',
+    top: '50%',
+    left: '50%',
+    transform: 'translate(-50%, -50%)',
+    zIndex: '9999',
+    backgroundColor: '#000',
+    color: '#fff',
+    padding: '6px 10px',
+    borderRadius: '5px',
+    border: 'none',
+    cursor: 'pointer',
+    opacity: '0.85'
+  });
+
+  wrapper.appendChild(button);
+
+  // Unlock logic
+  button.addEventListener('click', async () => {
+    const enteredPassword = prompt('Enter extension password to view this image:');
+    const latestSettings = await getExtensionSettings();
+
+    const hashedInput = simpleHash(enteredPassword);
+    const correctHash = latestSettings.password;
+
+    if (!latestSettings.isPasswordProtected || !correctHash || hashedInput === correctHash) {
+      img.style.filter = 'none'; // remove blur
+      button.remove(); // remove button
+    } else {
+      alert('Incorrect password.');
+    }
+  });
+}
+
 // Simple local hash function for comparison
 function simpleHash(str) {
   let hash = 0;
@@ -417,10 +671,11 @@ function simpleHash(str) {
   for (let i = 0; i < str.length; i++) {
     const char = str.charCodeAt(i);
     hash = ((hash << 5) - hash) + char;
-    hash |= 0;
+    hash |= 0; // Convert to 32-bit integer
   }
   return hash.toString();
 }
+
 
 // Run on page load
 blurImages();
@@ -453,6 +708,7 @@ async function getExtensionSettings() {
     };
   }
 }
+document.addEventListener('DOMContentLoaded', blurImages);
 
 // Initialize content script
 document.addEventListener('DOMContentLoaded', initialize);

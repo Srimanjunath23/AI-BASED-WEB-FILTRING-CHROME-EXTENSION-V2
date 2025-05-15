@@ -93,12 +93,7 @@ backButton.addEventListener('click', () => {
     history.back();
 });
 
-// Override button handler
-overrideButton.addEventListener('click', () => {
-    // Show password modal
-    passwordModal.classList.remove('hidden');
-    adminPassword.focus();
-});
+
 
 // Cancel button handler
 cancelButton.addEventListener('click', () => {

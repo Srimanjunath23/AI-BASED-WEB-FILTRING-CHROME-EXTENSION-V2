@@ -1,0 +1,197 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SafeGuard Content Filter - User Manual</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="index.css">
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container">
+            <a class="navbar-brand d-flex align-items-center" href="#">
+                <img src="generated-icon.png" alt="SafeGuard Logo" class="me-2" width="30" height="30">
+                SafeGuard Content Filter
+            </a>
+        </div>
+    </nav>
+
+    <div class="hero-section text-center py-5">
+        <div class="container">
+            <h1>Welcome to SafeGuard Content Filter</h1>
+            <p class="lead">Intelligent protection against harmful web content</p>
+        </div>
+    </div>
+
+    <main class="container my-5">
+        <section class="features mb-5">
+            <h2 class="text-center mb-4">Key Features</h2>
+            <div class="row g-4">
+                <div class="col-md-4">
+                    <div class="feature-card">
+                        <div class="icon-wrapper">
+                            <i class="bi bi-shield-check"></i>
+                        </div>
+                        <h3>Website Blocking</h3>
+                        <p>Automatically blocks websites containing harmful content</p>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="feature-card">
+                        <div class="icon-wrapper">
+                            <i class="bi bi-image"></i>
+                        </div>
+                        <h3>Image Filtering</h3>
+                        <p>Intelligently blurs sensitive images with option to view</p>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="feature-card">
+                        <div class="icon-wrapper">
+                            <i class="bi bi-search"></i>
+                        </div>
+                        <h3>Search Protection</h3>
+                        <p>Filters harmful search queries in real-time</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="getting-started mb-5">
+            <h2 class="text-center mb-4">Getting Started</h2>
+            <div class="setup-steps">
+                <div class="step">
+                    <span class="step-number">1</span>
+                    <h4>Installation</h4>
+                    <p>Install the extension from your browser's extension store</p>
+                </div>
+                <div class="step">
+                    <span class="step-number">2</span>
+                    <h4>Set Password</h4>
+                    <p>Create an admin password to protect your settings</p>
+                </div>
+                <div class="step">
+                    <span class="step-number">3</span>
+                    <h4>Configure Filters</h4>
+                    <p>Choose which types of content to filter</p>
+                </div>
+            </div>
+        </section>
+
+        <section class="usage-guide mb-5">
+            <h2 class="text-center mb-4">How to Use</h2>
+            <div class="accordion" id="usageAccordion">
+                <div class="accordion-item">
+                    <h2 class="accordion-header">
+                        <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapseOne">
+                            Accessing Settings
+                        </button>
+                    </h2>
+                    <div id="collapseOne" class="accordion-collapse collapse show" data-bs-parent="#usageAccordion">
+                        <div class="accordion-body">
+                            <p>Click the SafeGuard icon in your browser toolbar to access:</p>
+                            <ul>
+                                <li>Filter toggles for different content types</li>
+                                <li>Sensitivity adjustment slider</li>
+                                <li>Educational mode toggle</li>
+                                <li>Password protection settings</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                <div class="accordion-item">
+                    <h2 class="accordion-header">
+                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseTwo">
+                            Handling Blocked Content
+                        </button>
+                    </h2>
+                    <div id="collapseTwo" class="accordion-collapse collapse" data-bs-parent="#usageAccordion">
+                        <div class="accordion-body">
+                            <p>When content is blocked:</p>
+                            <ul>
+                                <li>A block page will appear with explanation</li>
+                                <li>You can click "Go Back" to return</li>
+                                <li>Admin users can override with password</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                <div class="accordion-item">
+                    <h2 class="accordion-header">
+                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseThree">
+                            Managing Blurred Images
+                        </button>
+                    </h2>
+                    <div id="collapseThree" class="accordion-collapse collapse" data-bs-parent="#usageAccordion">
+                        <div class="accordion-body">
+                            <div class="example-image">
+                                <img src="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='150'><rect width='100%' height='100%' fill='%23f0f0f0'/><text x='50%' y='50%' dominant-baseline='middle' text-anchor='middle' font-family='Arial' font-size='14' fill='%23666'>Example Image</text></svg>" alt="Example Blurred Image" class="img-fluid mb-3">
+                                <button class="btn btn-primary btn-sm">Show Image</button>
+                            </div>
+                            <p>Click "Show Image" and enter admin password to view blurred images</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="examples mb-5">
+            <h2 class="text-center mb-4">Examples</h2>
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="example-card">
+                        <h4>Educational Mode</h4>
+                        <p>Allows academic content while blocking harmful material:</p>
+                        <div class="example-list">
+                            <div class="allowed">
+                                <h5>Allowed:</h5>
+                                <ul>
+                                    <li>"Research paper on effects of media violence"</li>
+                                    <li>"Academic study on addiction prevention"</li>
+                                </ul>
+                            </div>
+                            <div class="blocked">
+                                <h5>Blocked:</h5>
+                                <ul>
+                                    <li>"Explicit violent content"</li>
+                                    <li>"Adult material"</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="example-card">
+                        <h4>Sensitivity Levels</h4>
+                        <div class="sensitivity-examples">
+                            <div class="sensitivity-level">
+                                <h5>Low</h5>
+                                <p>Blocks only explicit harmful content</p>
+                            </div>
+                            <div class="sensitivity-level">
+                                <h5>Medium</h5>
+                                <p>Balanced protection for most users</p>
+                            </div>
+                            <div class="sensitivity-level">
+                                <h5>High</h5>
+                                <p>Maximum protection, may overblock</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer class="bg-light py-4">
+        <div class="container text-center">
+            <p>SafeGuard Content Filter v1.0.0</p>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="index.js"></script>
+</body>
+</html>
