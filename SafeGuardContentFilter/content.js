@@ -124,7 +124,7 @@ function analyzePageContent() {
   performContentAnalysis();
 }
 
-//   const pageContent = document.body ? document.body.innerText.toLowerCase() : '';
+
 //   const url = window.location.href;
 //   const pageTitle = document.title ? document.title.toLowerCase() : '';
 
@@ -316,20 +316,20 @@ function analyzePageContent() {
 //   });
 // }
 
-// /**
-//  * Analyze the text content of the page using OpenAI and block if needed.
-//  */
-// async function analyzePageContent() {
-//   const pageText = document.body.innerText;
-//   try {
-//     const result = await performContentAnalysis(pageText);
-//     if (result.block) {
-//       blockPage("Blocked based on AI content analysis.");
-//     }
-//   } catch (error) {
-//     console.error("AI content analysis failed:", error);
-//   }
-// }
+/**
+ * Analyze the text content of the page using OpenAI and block if needed.
+ */
+async function analyzePageContent() {
+  const pageText = document.body.innerText;
+  try {
+    const result = await performContentAnalysis(pageText);
+    if (result.block) {
+      blockPage("Blocked based on AI content analysis.");
+    }
+  } catch (error) {
+    console.error("AI content analysis failed:", error);
+  }
+}
 
 // Handle harmful content in incognito mode with inline content replacement
 function handleHarmfulContentInIncognito(analysisResult) {
@@ -428,6 +428,87 @@ function handleHarmfulContentInIncognito(analysisResult) {
   backButton.focus();
 }
 
+// --- Real-time adult content and educational detection ---
+(function setupRealtimeContentBlocker() {
+  // Keywords for adult and educational detection
+  const adultKeywords = [
+    'xxx', 'porn', 'adult content', 'nsfw', 'nude', 'sex', 'hardcore', 'erotic', 'hentai',
+    'xhamster', 'xmasti', 'xmaza', 'pornography', 'naked', 'brazzers', 'redtube', 'youjizz', 'spankbang', 'youporn', 'bangbros', 'hclips', 'fapello', 'rule34', 'tnaflix', 'onlyfans', 'manyvids', 'nudogram', 'motherless', 'erome', 'camwhores', 'livejasmin', 'chaturbate', 'stripchat', 'hqporner', 'cam4', 'tubegalore', 'mydirtyhobby', 'metart', 'porndig'
+  ];
+  const educationalKeywords = [
+    'research', 'study', 'academic', 'education', 'scientific', 'analysis', 'university', 'paper', 'sex education',
+    'journal', 'peer-reviewed', 'thesis', 'dissertation', 'scholarly', 'educational', 'curriculum', 'school', 'college', 'faculty', 'professor', 'student', 'learning', 'teaching', 'prevention', 'awareness', 'psychology', 'sociology', 'medicine', 'health', 'public health', 'case study', 'systematic review', 'meta-analysis'
+  ];
+  const educationalPhrases = [
+    'research on', 'study on', 'analysis of', 'effects of', 'impact of', 'prevention of', 'case study of', 'review of', 'meta-analysis of', 'educational approach', 'academic perspective'
+  ];
+
+  let lastTitle = document.title;
+  let lastBody = document.body ? document.body.innerText : '';
+  let pageBlocked = false;
+
+  function isEducational(content) {
+    const wordCount = educationalKeywords.filter(word => content.includes(word)).length;
+    const hasPhrase = educationalPhrases.some(phrase => content.includes(phrase));
+    return (wordCount >= 3) || hasPhrase;
+  }
+
+  function isAdult(content) {
+    return adultKeywords.some(word => content.includes(word));
+  }
+
+  function blockPageRealtime(reason) {
+    if (pageBlocked) return;
+    pageBlocked = true;
+    // Redirect to block.html with details
+    const blockUrl = chrome.runtime.getURL('block.html');
+    const urlObj = new URL(blockUrl);
+    urlObj.searchParams.set('url', window.location.href);
+    urlObj.searchParams.set('reason', reason || 'Adult content detected');
+    urlObj.searchParams.set('category', 'NSFW');
+    window.location.href = urlObj.toString();
+  }
+
+  function analyzeAndBlockIfNeeded() {
+    if (pageBlocked) return;
+    const title = document.title ? document.title.toLowerCase() : '';
+    const body = document.body ? document.body.innerText.toLowerCase() : '';
+    const content = title + ' ' + body;
+    if (isAdult(content)) {
+      if (!isEducational(content)) {
+        blockPageRealtime('Adult content detected');
+      }
+    }
+  }
+
+  // Observe title changes
+  const titleObserver = new MutationObserver(() => {
+    if (document.title !== lastTitle) {
+      lastTitle = document.title;
+      analyzeAndBlockIfNeeded();
+    }
+  });
+  const titleElement = document.querySelector('title');
+  if (titleElement) {
+    titleObserver.observe(titleElement, { childList: true });
+  }
+
+  // Observe body text changes
+  const bodyObserver = new MutationObserver(() => {
+    const currentBody = document.body ? document.body.innerText : '';
+    if (currentBody !== lastBody) {
+      lastBody = currentBody;
+      analyzeAndBlockIfNeeded();
+    }
+  });
+  if (document.body) {
+    bodyObserver.observe(document.body, { childList: true, subtree: true, characterData: true });
+  }
+
+  // Initial check on load
+  analyzeAndBlockIfNeeded();
+})();
+
 // Set up mutation observer to watch for DOM changes
 function setupMutationObserver() {
   // Create a mutation observer to detect new content
@@ -472,11 +553,11 @@ function setupMutationObserver() {
 }
 
 // Process newly added images
-function processNewImages(images, pageKeywords) {
+async function processNewImages(images, pageKeywords) {
   // Performance optimization: batch processing
   const batchSize = 10;
 
-  const processBatch = (startIndex) => {
+  const processBatch = async (startIndex) => {
     const endIndex = Math.min(startIndex + batchSize, images.length);
 
     for (let i = startIndex; i < endIndex; i++) {
@@ -484,29 +565,52 @@ function processNewImages(images, pageKeywords) {
 
       // Skip if already processed
       if (img.dataset.safeguardProcessed) continue;
-
-      // Mark as processed to avoid duplicates
       img.dataset.safeguardProcessed = 'true';
 
       // Skip tiny images (likely icons)
-      if (img.width < 50 || img.height < 50) continue;
+      if (img.width < 50 || img.height < 50 || img.src.startsWith('data:') || img.src.startsWith('blob:')) continue;
 
-      // Check if image should be blurred
-      const shouldBlur = shouldBlurImage(img, pageKeywords);
-
-      if (shouldBlur) {
-        // Use requestAnimationFrame for smoother UI
-        window.requestAnimationFrame(() => blurImage(img));
+      const alt = img.alt?.toLowerCase() || '';
+      const src = img.src.toLowerCase();
+      const pageText = document.body.innerText.toLowerCase();
+      const fallbackKeywords = [
+        'xxx', 'porn', 'nudity', 'nsfw', 'sex', 'violence', 'gore',
+        'blood', 'murder', 'kill', 'dead', 'knife', 'gun', 'injury', 'suicide'
+      ];
+      // 1. Check keywords first
+      let isHarmful = fallbackKeywords.some(keyword => alt.includes(keyword) || src.includes(keyword));
+      if (isHarmful) {
+        blurImageWithOverlay(img);
+        continue;
+      }
+      // 2. If not detected by keywords, use AI detection
+      try {
+        const settings = await getExtensionSettings();
+        const sensitivity = settings.sensitivity || 'medium';
+        const res = await fetch('http://localhost:8000/analyze_image', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            image_url: img.src,
+            image_alt: alt,
+            surrounding_text: pageText,
+            sensitivity: sensitivity
+          })
+        });
+        const result = await res.json();
+        isHarmful = result.is_harmful;
+        if (isHarmful) {
+          blurImageWithOverlay(img);
+        }
+      } catch (err) {
+        // If AI fails, do nothing (already checked keywords)
       }
     }
-
     // Process next batch if more images exist
     if (endIndex < images.length) {
       setTimeout(() => processBatch(endIndex), 0);
     }
   };
-
-  // Start processing the first batch
   processBatch(0);
 }
 
@@ -551,16 +655,14 @@ async function blurImages() {
     const src = img.src.toLowerCase();
     const pageText = document.body.innerText.toLowerCase();
 
-    let isHarmful = false;
-     isHarmful = fallbackKeywords.some(keyword =>
-        alt.includes(keyword) || src.includes(keyword)
-      );
-      if (isHarmful) {
+    // 1. Check keywords first
+    let isHarmful = fallbackKeywords.some(keyword => alt.includes(keyword) || src.includes(keyword));
+    if (isHarmful) {
       blurImageWithOverlay(img);
+      continue;
     }
-
+    // 2. If not detected by keywords, use AI detection
     try {
-        
       const res = await fetch('http://localhost:8000/analyze_image', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -708,8 +810,9 @@ async function getExtensionSettings() {
     };
   }
 }
-document.addEventListener('DOMContentLoaded', blurImages);
+
 
 // Initialize content script
 document.addEventListener('DOMContentLoaded', initialize);
+document.addEventListener('DOMContentLoaded', blurImages);
 initialize();  // Also try executing immediately for faster operation

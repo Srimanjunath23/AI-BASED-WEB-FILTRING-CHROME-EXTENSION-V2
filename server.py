@@ -6,13 +6,19 @@ Handles AI-powered content analysis using BERT NLP and YOLO image detection
 import os
 import json
 import logging
-from flask import Flask, request, jsonify,render_template
+from flask import Flask, request, jsonify,render_template, send_from_directory
+import requests
 from flask_cors import CORS
 import numpy as np
+from PIL import Image
+from io import BytesIO
 
 # Import utilities for AI processing
 from nlp_processor import analyze_text_with_bert
 from vision_processor import ViolenceDetector
+
+# Initialize the ViolenceDetector
+detector = ViolenceDetector()
 
 # Set up logging
 logging.basicConfig(
@@ -81,7 +87,7 @@ educational_terms = [
     
     # Educational roles and institutions
     "school", "university", "college", "classroom", "teacher", "student", 
-    "professor", "counselor", "program", "curriculum", "dissertation", "thesis","theory","theories"
+    "professor", "counselor", "program", "curriculum", "dissertation", "thesis","theory","theories","Social",
     
     # Paper and document types
     "literature", "publication", "dissertation", "thesis", "journal", 
@@ -283,8 +289,8 @@ def check_domain():
     
     # Known harmful domains list - these would be blocked regardless of sensitivity
     known_harmful_domains = [
-        "exampleporn.com", "adultsite.xyz", "nsfwvideos.io", "xxxhub.org",
-    "pornhub.com", "xvideos.com", "xhamster.com", "redtube.com",
+    "exampleporn.com", "adultsite.xyz", "nsfwvideos.io", "xxxhub.org",
+    "pornhub.com", "xvideos.com", "redtube.com",
     "xnxx.com", "youjizz.com", "spankbang.com", "youporn.com",
     "brazzers.com", "bangbros.com", "team-skeet.com", "hclips.com",
     "tnaflix.com", "fapello.com", "rule34.xxx", "porn.com",
@@ -462,6 +468,10 @@ def get_threshold_for_sensitivity(sensitivity):
         return 0.4  # 40% confidence required
     else:
         return 0.6  # Default medium
+
+@app.route('/<path:filename>')
+def serve_static(filename):
+    return send_from_directory('templates', filename)
 
 if __name__ == '__main__':
     # Run the Flask app without SSL (for development)
